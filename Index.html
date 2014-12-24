@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<head>
+<meta charset="utf-8">
+<title>Country immigrants to the USA</title>
+<link href="css/layout.css" rel="stylesheet" type="text/css"></link>
+<link rel="stylesheet" type="text/css" href="css/c3.css"></link>
+<link rel="stylesheet" href="css/jquery-ui.css">
+</head>
+<body>
+
+
+  <div id="legend"></div>
+
+  <h2 id="mapTitle"></h2>
+
+  <div id="slider"></div>
+
+  <div id="container"></div> 
+
+  <div id="info"></div>
+  
+	<div id="piechart"></div>
+
+<script src="js/jquery-1.10.2.js"></script>
+<script src="js/jquery-ui.js"></script>
+<script src="js/topojson.v1.min.js"></script>
+<script src="js/d3.v3.min.js" charset="utf-8"></script>
+<script src="js/c3.js"></script>
+
+
+<script>
+sliderValue = 1998
+// set the year
+var year = localStorage.getItem('sliderValue');
+
+//slider
+$(function() {
+    $( "#slider" ).slider({
+      value: year,
+      min: 1999,
+      max: 2013,
+      step: 1,
+      change:function() { 
+        year = $('#slider').slider("option", "value");
+        if(year==2013)
+        {
+          window.location.href = "overview.html";
+        } else {
+          redraw();
+        }
+      }
+    });
+  });
+
+//change the title according to the year
+document.title = "Country immigrants to the USA in " + year;
+
+// set the map title
+document.getElementById("mapTitle").innerHTML = "World Map: Immigrants to USA in " + year;
+//document.getElementById("headTitle").innerHTML = "Immigrants to USA in " + year;
+
+
+//queue 
+(function(){function n(n){function t(){for(;f=a<c.length&&n>p;){var u=a++,t=c[u],r=l.call(t,1);r.push(e(u)),++p,t[0].apply(null,r)}}function e(n){return function(u,l){--p,null==d&&(null!=u?(d=u,a=s=0/0,r()):(c[n]=l,--s?f||t():r()))}}function r(){null!=d?v(d):i?v(d,c):v.apply(null,[d].concat(c))}var o,f,i,c=[],a=0,p=0,s=0,d=null,v=u;return n||(n=1/0),o={defer:function(){return d||(c.push(arguments),++s,t()),o},await:function(n){return v=n,i=!1,s||r(),o},awaitAll:function(n){return v=n,i=!0,s||r(),o}}}function u(){}"undefined"==typeof module?self.queue=n:module.exports=n,n.version="1.0.4";var l=[].slice})();
+
+var width = document.getElementById('container').offsetWidth-60;
+var height = width / 2;
+
+var topo,projection,path,svg,g;
+
+
+
+
+// called after clicking on "previous"
+function goBack()
+{
+if(year == 1999)
+	{
+		var prev = document.getElementById('prevBut');
+		prev.disabled = true;
+	} else {
+		var next = document.getElementById('nextBut');
+		next.disabled = false;
+		year--;
+		redraw();
+	}
+}
+
+//called after clicking on "next"
+function goNext()
+{
+if(year == 2012)
+	{
+		var next = document.getElementById('nextBut');
+		window.location.href = "overview.html";
+	} else {
+		var prev = document.getElementById('prevBut');
+		prev.disabled = false;
+		year++;
+		redraw();
+	}
+}
+
+//setup tooltip
+var tooltip = d3.select("body").append("div").attr("class", "tooltip hidden");
+
+// call setup function
+setup(width,height);
+
+
+
+
+// refresh the map, instead of going to seperate html files.
+function redraw() {
+	width = document.getElementById('container').offsetWidth-60;
+	height = width / 2;
+	d3.select('h2').text("World Map: Immigrants to USA in " + year);
+	d3.select('h1').text("Immigrants to USA in " + year);
+	d3.select('svg').remove();
+	setup(width,height);
+	queue()
+    .defer(d3.json, "world-110m-cia.json")
+    .defer(d3.csv, "csv/immigrants-" + year + ".csv")
+    .await(ready);
+	d3.select('table').remove();
+	
+	
+}
+
+
+function setup(width,height){
+	//data about the scale, centering, width, etc...
+  projection = d3.geo.mercator().translate([0, 110]).scale(width / 2.2 / Math.PI);
+
+	//choose the projection
+  path = d3.geo.path().projection(projection);
+
+  //draw the map (map figure actually)
+  svg = d3.select("#container").append("svg")
+      .attr("width", width)
+      .attr("height", height);
+
+  var outterg = svg.append("g").attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
+
+  g = outterg.append("g").attr("id", "innerg");
+
+}
+
+// add commas to seperate the 1000 - tallen ex: 1,000,000 or 33,332,333,333  etc...
+function addCommas(nStr){
+  nStr += '';
+  x = nStr.split('.');
+  x1 = x[0];
+  x2 = x.length > 1 ? '.' + x[1] : '';
+  var rgx = /(\d+)(\d{3})/;
+  while (rgx.test(x1)) {
+    x1 = x1.replace(rgx, '$1' + '.' + '$2');
+  }
+  return x1 + x2;
+}
+
+// queue for better performance, wait till everything is loaded and begin executing program. This prevents delays.
+queue()
+    .defer(d3.json, "world-110m-cia.json")
+    .defer(d3.csv, "csv/immigrants-" + year + ".csv")
+    .await(ready);
+
+	// !! MAIN FUNCTION !!
+function ready(error, world, immigrants) {
+
+
+  //how to grab maximum
+  //var max = d3.max(immigrants, function(d) { return parseInt(d.immigrants); });
+
+  //sort by immigrants
+  var sorted = immigrants.sort(function(a, b){ return d3.descending(parseInt(a.immigrants), parseInt(b.immigrants)); });
+  
+  // Total of immigrants for current year
+  var total = 0;
+	immigrants.forEach(function(d) {
+		total += parseInt(d.immigrants);
+	});
+	
+	
+	
+	///////////////////////////
+	// interactive pie chart //
+	///////////////////////////
+var chart = c3.generate({
+bindto: '#piechart',
+    data: {
+         url: 'csv/top-' + year + '.csv'
+    },
+    color: {
+    pattern: ['#7401DF', '#0101DF', '#0174DF', '#01DFD7','#3ADF00', '#D7DF01', '#DF7401', '#DF0101','#DF01A5', '#F3F781', '#0B610B']
+  }
+});
+setTimeout(function () {
+    chart.transform('pie');
+}, 0050);
+
+//////////////////////
+	
+	
+	
+	
+	//Total immigrants per country of all years
+	// alles tezamen plakken -> country,i1999,i2000,i2001,i2002,...
+	//							af,89,78,78,51,...
+	//							al,181,6,4,223,21,...
+
+  // the actual color definitions and splits. Now: split per 0->50, 50->100, etc etc
+  // always be sure to define ONE COLOR MORE THAN THE NUMBER OF SLPITS!!
+  var split = [50, 100, 200, 500, 1000, 2500, 5000, 7500];
+  var colors = ["#D9F2E0","#D1F0D2","#CDECC6","#BAE8BA","#A7E2A9","#94DB9B","#79D282","#7ECB62","#56AC39"];
+  
+  var color = d3.scale.threshold()
+      .domain(split)
+      .range(colors);
+	//parse the countries
+    topo = topojson.feature(world, world.objects.countries).features;
+	
+	 immigrants.forEach(function(d) {
+    d.immigrants = +d.immigrants;
+  });
+  
+
+	
+	  
+
+	// put them in variable
+    var country = d3.select("#innerg").selectAll(".country").data(topo);
+
+    //offsets
+    var offsetL = document.getElementById('container').offsetLeft+30;
+    var offsetT =document.getElementById('container').offsetTop-30;
+
+	// set properties
+    country.enter().insert("path")
+      .attr("class", "country")
+      .attr("d", path)
+      .attr("id", function(d,i) { return d.id; })
+      .attr("title", function(d,i) { return d.properties.name; })
+      .style("fill", function(d,i) { 
+        var m = immigrants.filter(function(f){return f.country == d.id});
+        if(m.length>0){
+            return color(m[0].immigrants);
+        }
+      })
+	  
+	   
+	  
+		
+		
+	
+      .style("stroke", "#111")
+	  // MOUSOVER --> !!!!!BARCHART!!!!!
+      .on("mousemove", function(d,i) {
+        var mouse = d3.mouse(svg.node()).map( function(d) { return parseInt(d); } );
+        console.log(d);
+        var cap = "<b>Capital:</b> ";
+        var totPop = '<b>Population:</b> ';
+        var pop = '<b>Number of immigrants:</b> ';
+        var m = immigrants.filter(function(f){return f.country == d.id});
+        if(m.length>0){
+          pop += addCommas(m[0].immigrants);
+        }
+        cap += d.properties.capital;
+        totPop += addCommas(m[0].population)
+
+
+
+        tooltip.classed("hidden", false)
+          .attr("style", "left:"+(mouse[0]+offsetL)+"px;top:"+(mouse[1]+offsetT)+"px")
+          .html(d.properties.name + "<br>" + cap + "<br>" + totPop + "<br>" + pop);
+      })
+	  // remove tooltip when you "leave" a country
+      .on("mouseout",  function(d,i) {
+        tooltip.classed("hidden", true);
+      });
+
+    //create a custom legend
+    var legend = '';
+
+    colors.forEach(function(f,i){
+      if(i==0){
+        var label = '0-'+addCommas(split[i]);
+		// don't forget to adjust this if you want to have more then 8 splits for the color dividing.
+      } else if(i==8){
+        var label = addCommas(split[i-1])+'-'+addCommas(sorted[0].immigrants);
+      } else {
+        var label = addCommas(split[i-1])+'-'+addCommas(split[i]);
+      }
+      legend += '<div style="background:'+f+';"></div><label>'+label+'</label>';
+    });
+
+    d3.select("#legend").html(legend);
+
+
+    //create sorted html table
+	var teller = 1;
+    var table = d3.select("#info").append("table"),
+        thead = table.append("thead"),
+        tbody = table.append("tbody"),
+        theadtr = thead.append("tr");
+
+        theadtr.append("th").text("Country");
+        theadtr.append("th").text("Immigrants to USA");
+
+    sorted.forEach(function(c){
+      //tbody.append("tr").html('<td>'+c.country+'</td><td>'+addCommas(c.immigrants)+'</td>');
+      var cname = topo.filter(function(f){ return f.id == c.country });
+
+	  if(teller<=10){
+      if(cname.length>0){
+        tbody.append("tr").html('<td>'+cname[0].properties.name+'</td><td>'+addCommas(c.immigrants)+'</td>');
+		teller++;
+      }
+	  }
+    });
+
+}
+
+
+
+</script>
+</body>
+</html>
